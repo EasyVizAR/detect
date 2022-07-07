@@ -21,9 +21,14 @@ apps:
       - network
 
 parts:
-  server:
+  detect:
     plugin: python
     source: .
+    build-environment:
+      # Fix for one of the installed packages messing with PYTHONPATH.
+      # See: https://forum.snapcraft.io/t/python-plugin-on-core20-cant-find-ensurepip/23896/6
+      - PATH: /usr/bin:$PATH
+      - PYTHONPATH: ''
     build-packages:
       - python3-dev
     stage-packages:
