@@ -21,16 +21,8 @@ apps:
       - network
 
 parts:
-  detect:
-    plugin: python
-    source: .
-    build-environment:
-      # Fix for one of the installed packages messing with PYTHONPATH.
-      # See: https://forum.snapcraft.io/t/python-plugin-on-core20-cant-find-ensurepip/23896/6
-      - PATH: /usr/bin:$PATH
-      - PYTHONPATH: ''
-    build-packages:
-      - python3-dev
+  deps:
+    plugin: nil
     stage-packages:
       - libgl1
       - libice6
@@ -40,6 +32,13 @@ parts:
       - libcuda1-384
       - libcudart10.1
       - libxcb1
+
+  detect:
+    plugin: python
+    source: .
+    build-packages:
+      - python3-dev
+    stage-packages:
       - python3
     requirements:
       - requirements.txt
