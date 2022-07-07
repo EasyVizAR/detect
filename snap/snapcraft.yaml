@@ -43,10 +43,9 @@ parts:
     requirements:
       - requirements.txt
 
-slots:
+plugs:
   data:
     interface: content
     content: data
     target: $SNAP/easyvizar
     default-provider: easyvizar-edge
-
