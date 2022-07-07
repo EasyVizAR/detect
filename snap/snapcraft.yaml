@@ -1,0 +1,40 @@
+name: easyvizar-detect
+base: core20
+version: "0.1"
+summary: Object detection for EasyVizAR headsets
+description: |
+  This module automatically performs object detection on images
+  uploaded to the EasyVizAR edge server.
+
+grade: stable
+confinement: strict
+
+apps:
+  detect:
+    command: bin/detect
+    daemon: simple
+    environment:
+      DATA_PATH: $SNAP/easyvizar
+      TORCH_HOME: $SNAP_DATA
+      VIZAR_SERVER: localhost:5000
+    plugs:
+      - network
+
+parts:
+  server:
+    plugin: python
+    source: .
+    build-packages:
+      - python3-dev
+    stage-packages:
+      - python3
+    requirements:
+      - requirements.txt
+
+slots:
+  data:
+    interface: content
+    content: data
+    target: $SNAP/easyvizar
+    default-provider: easyvizar-edge
+
