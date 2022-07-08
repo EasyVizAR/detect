@@ -1,7 +1,7 @@
 # YOLOv5 requirements
 # Usage: pip install -r requirements.txt
 
---find-links https://download.pytorch.org/whl/torch_stable.html
+#--find-links https://download.pytorch.org/whl/torch_stable.html
 
 # Base ----------------------------------------
 matplotlib>=3.2.2
@@ -13,8 +13,8 @@ requests>=2.23.0
 scipy>=1.4.1  # Google Colab version
 #torch==1.8.1+cu101
 #torchvision==0.9.1+cu101
-torch>=1.7.0,<1.12.0  # https://github.com/ultralytics/yolov5/issues/8395
-torchvision>=0.8.1,<0.13.0 # https://github.com/ultralytics/yolov5/issues/8395
+#torch>=1.7.0,<1.12.0  # https://github.com/ultralytics/yolov5/issues/8395
+#torchvision>=0.8.1,<0.13.0 # https://github.com/ultralytics/yolov5/issues/8395
 tqdm>=4.41.0
 protobuf<4.21.3  # https://github.com/ultralytics/yolov5/issues/8012
 

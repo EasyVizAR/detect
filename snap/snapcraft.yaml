@@ -15,6 +15,7 @@ apps:
     daemon: simple
     environment:
       DATA_PATH: $SNAP/easyvizar
+      PYTHONPATH: $SNAP_DATA
       TORCH_HOME: $SNAP_DATA
       VIZAR_SERVER: localhost:5000
     plugs:
@@ -23,6 +24,10 @@ apps:
 architectures:
   - build-on: amd64
   - build-on: arm64
+
+hooks:
+  install:
+    plugs: [network]
 
 parts:
   deps:
@@ -34,9 +39,8 @@ parts:
       - libx11-6
       - libxext6
       - libxcb1
-      - try:
-        - libcuda1-384
-        - libcudart10.1
+      - libcuda1-384:amd64
+      - libcudart10.1:amd64
 
   detect:
     plugin: python
