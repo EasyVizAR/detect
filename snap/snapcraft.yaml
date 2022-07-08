@@ -29,9 +29,10 @@ parts:
       - libsm6
       - libx11-6
       - libxext6
-      - libcuda1-384
-      - libcudart10.1
       - libxcb1
+      - try:
+        - libcuda1-384
+        - libcudart10.1
 
   detect:
     plugin: python
