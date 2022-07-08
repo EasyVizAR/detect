@@ -42,6 +42,10 @@ parts:
       - libcuda1-384:amd64
       - libcudart10.1:amd64
 
+  setup:
+    plugin: dump
+    source: setup
+
   detect:
     plugin: python
     source: .
@@ -49,8 +53,6 @@ parts:
       - python3-dev
     stage-packages:
       - python3
-    requirements:
-      - requirements.txt
 
 plugs:
   data:
