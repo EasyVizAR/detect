@@ -1,4 +1,5 @@
 import os
+import sys
 
 import requests
 import torch
@@ -8,7 +9,7 @@ DATA_PATH = os.environ.get("DATA_PATH", "./")
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 
-TIME_DELTA = 0.001 # add to the most recent timestamp to avoid re-fetching
+HISTORY_SIZE = 64 # keep the IDs of the last 64 processed to avoid repeating work
 
 
 class Detector:
@@ -83,7 +84,7 @@ def main():
 
     # Keep track of the most recently completed item IDs so that we do not
     # repeat work.
-    recently_completed = set()
+    completed_images = []
 
     for item in data:
         if item['updated'] >= last_timestamp:
@@ -96,23 +97,23 @@ def main():
                 url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
                 requests.patch(url, json=info)
 
-        recently_completed.add(item['id'])
+        completed_images.append(item['id'])
 
     while True:
+        sys.stdout.flush()
+
         url = "http://{}/photos?ready=1&since={}&wait={}".format(VIZAR_SERVER, last_timestamp, WAIT_TIMEOUT)
-        print(url)
+        print("Query: " + url)
         response = requests.get(url)
         if not response.ok or response.status_code == 204:
             continue
-
-        new_recently_completed = set()
 
         items = response.json()
         for item in items:
             if item['updated'] >= last_timestamp:
                 last_timestamp = item['updated']
 
-            if item['id'] in recently_completed:
+            if item['id'] in completed_images:
                 continue
 
             info = detector.run(item)
@@ -120,9 +121,9 @@ def main():
                 url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
                 requests.patch(url, json=info)
 
-            recently_completed.add(item['id'])
+            completed_images.append(item['id'])
 
-        recently_completed = new_recently_completed
+        completed_images = completed_images[:HISTORY_SIZE]
 
 
 if __name__ == "__main__":
