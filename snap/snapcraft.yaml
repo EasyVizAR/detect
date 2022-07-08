@@ -20,6 +20,10 @@ apps:
     plugs:
       - network
 
+architectures:
+  - build-on: [amd64, arm64]
+    run-on: [amd64, arm64]
+
 parts:
   deps:
     plugin: nil
