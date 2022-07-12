@@ -39,8 +39,9 @@ parts:
       - libx11-6
       - libxext6
       - libxcb1
-      - libcuda1-384:amd64
-      - libcudart10.1:amd64
+      - try:
+        - libcuda1-384
+        - libcudart10.1
 
   setup:
     plugin: dump
@@ -53,6 +54,7 @@ parts:
       - python3-dev
     stage-packages:
       - python3
+      - python3-pip
 
 plugs:
   data:
