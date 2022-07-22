@@ -46,6 +46,8 @@ parts:
   setup:
     plugin: dump
     source: setup
+    organize:
+      '*.txt': setup/
 
   detect:
     plugin: python
