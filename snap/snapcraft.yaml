@@ -28,6 +28,8 @@ architectures:
 hooks:
   install:
     plugs: [network]
+  post-refresh:
+    plugs: [network]
 
 parts:
   deps:
