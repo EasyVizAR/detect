@@ -8,4 +8,8 @@
 install_dir="$SNAP_DATA"
 torch_url=https://download.pytorch.org/whl/torch_stable.html
 
-pip3 install --target "$SNAP_DATA" --requirements "$SNAP/setup/requirements.$SNAP_ARCH.txt"
+if $SNAP/usr/bin/pip3 install --target "$SNAP_DATA" --requirements "$SNAP/setup/requirements.$SNAP_ARCH.txt" ; then
+    echo "Python packages installed successfully"
+else
+    echo "Python packages were NOT installed"
+fi
