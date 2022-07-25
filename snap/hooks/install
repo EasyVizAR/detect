@@ -5,8 +5,8 @@
 # unless the snap is completely removed and reinstalled.
 #
 
-tmp_dir="$SNAP_COMMON/pip-install"
-install_dir="$SNAP_DATA/python-packages"
+tmp_dir="$SNAP_COMMON"
+install_dir="$SNAP_DATA"
 
 log_file="$SNAP_COMMON/install.log"
 error_file="$SNAP_COMMON/errors.log"
@@ -20,7 +20,7 @@ echo "Running snap install hook..." >$log_file
 # -E flag ignores PYTHONPATH, which points to our initially empty install directory.
 "$SNAP/bin/python3" -E -m pip install --no-cache-dir --prefix "$install_dir" --requirement "$SNAP/setup/requirements.$SNAP_ARCH.txt" >>"$log_file" 2>"$error_file"
 
-if $? ; then
+if [ $? -eq 0 ]; then
     echo "Python packages installed successfully" >>"$log_file"
 else
     echo "Python packages were NOT installed, check $error_file" >>"$log_file"
