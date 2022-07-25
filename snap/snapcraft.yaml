@@ -59,6 +59,8 @@ parts:
     stage-packages:
       - python3
       - python3-pip
+    requirements:
+      - requirements.txt
 
 plugs:
   data:
