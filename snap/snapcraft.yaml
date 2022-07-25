@@ -15,7 +15,7 @@ apps:
     daemon: simple
     environment:
       DATA_PATH: $SNAP/easyvizar
-      PYTHONPATH: $SNAP_DATA
+      PYTHONPATH: $SNAP_DATA/python-packages
       TORCH_HOME: $SNAP_DATA
       VIZAR_SERVER: localhost:5000
     plugs:

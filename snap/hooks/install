@@ -5,14 +5,15 @@
 # unless the snap is completely removed and reinstalled.
 #
 
-install_dir="$SNAP_DATA"
+tmp_dir="$SNAP_COMMON/pip-install"
+install_dir="$SNAP_DATA/python-packages"
 torch_url=https://download.pytorch.org/whl/torch_stable.html
 
 # Some devices may have a tmpfs filesystem that is too small to unpack torch
 # for installation, which results in "No space left on device" errors.
-export TMPDIR=$SNAP_COMMON
+export TMPDIR=$tmp_dir
 
-if $SNAP/bin/pip3 install --no-cache-dir --target "$SNAP_DATA" --requirement "$SNAP/setup/requirements.$SNAP_ARCH.txt" ; then
+if $SNAP/bin/pip3 install --no-cache-dir --target "$install_dir" --requirement "$SNAP/setup/requirements.$SNAP_ARCH.txt" ; then
     echo "Python packages installed successfully"
 else
     echo "Python packages were NOT installed"
