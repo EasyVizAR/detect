@@ -1,3 +1,4 @@
+import operator
 import os
 import sys
 
@@ -8,8 +9,6 @@ import torch
 DATA_PATH = os.environ.get("DATA_PATH", "./")
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
-
-HISTORY_SIZE = 64 # keep the IDs of the last 64 processed to avoid repeating work
 
 
 class Detector:
@@ -61,6 +60,7 @@ class Detector:
 
             shape = results.imgs[0].shape
             image_info = {
+                "status": "done",
                 "width": shape[0],
                 "height": shape[1],
                 "annotations": annotations
@@ -71,59 +71,54 @@ class Detector:
             print(error)
 
 
-def main():
-    model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
-    detector = Detector(model)
-
-    url = "http://{}/photos?ready=1".format(VIZAR_SERVER)
+def repair_images():
+    """
+    Repair images on the server that have an invalid status.
+    """
+    query_url = "http://{}/photos?status=unknown".format(VIZAR_SERVER)
 
     response = requests.get(url)
     data = response.json()
 
-    last_timestamp = 0
-
-    # Keep track of the most recently completed item IDs so that we do not
-    # repeat work.
-    completed_images = []
-
     for item in data:
-        if item['updated'] >= last_timestamp:
-            last_timestamp = item['updated']
+        status = "created"
+        if item.get("ready", False):
+            status = "ready"
 
-        if item.get("annotations") in [None, []]:
-            info = detector.run(item)
+        annotations = item.get("annotations")
+        if annotations is not None and len(annotations) > 0:
+            status = "done"
 
-            if info is not None:
-                url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
-                requests.patch(url, json=info)
+        change = {"status": status}
+        url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
+        requests.patch(url, json=change)
 
-        completed_images.append(item['id'])
+
+def main():
+    model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
+    detector = Detector(model)
+
+    repair_images()
 
     while True:
         sys.stdout.flush()
 
-        url = "http://{}/photos?ready=1&since={}&wait={}".format(VIZAR_SERVER, last_timestamp, WAIT_TIMEOUT)
-        print("Query: " + url)
+        query_url = "http://{}/photos?status=ready&wait={}".format(VIZAR_SERVER, WAIT_TIMEOUT)
         response = requests.get(url)
         if not response.ok or response.status_code == 204:
             continue
 
         items = response.json()
         for item in items:
-            if item['updated'] >= last_timestamp:
-                last_timestamp = item['updated']
+            # Sort by priority level (descending), then creation time (ascending)
+            item['priority_tuple'] = (-1 * item.get("priority", 0), item.get("created"))
 
-            if item['id'] in completed_images:
-                continue
-
+        items.sort(key=operator.itemgetter("priority_tuple"))
+        for item in items:
             info = detector.run(item)
             if info is not None:
                 url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
                 requests.patch(url, json=info)
-
-            completed_images.append(item['id'])
-
-        completed_images = completed_images[:HISTORY_SIZE]
 
 
 if __name__ == "__main__":
