@@ -76,8 +76,7 @@ def repair_images():
     Repair images on the server that have an invalid status.
     """
     query_url = "http://{}/photos?status=unknown".format(VIZAR_SERVER)
-
-    response = requests.get(url)
+    response = requests.get(query_url)
     data = response.json()
 
     for item in data:
@@ -104,7 +103,7 @@ def main():
         sys.stdout.flush()
 
         query_url = "http://{}/photos?status=ready&wait={}".format(VIZAR_SERVER, WAIT_TIMEOUT)
-        response = requests.get(url)
+        response = requests.get(query_url)
         if not response.ok or response.status_code == 204:
             continue
 

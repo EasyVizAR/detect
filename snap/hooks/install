@@ -17,8 +17,7 @@ export TMPDIR="$tmp_dir"
 
 echo "Running snap install hook..." >$log_file
 
-# -E flag ignores PYTHONPATH, which points to our initially empty install directory.
-"$SNAP/bin/python3" -E -m pip install --no-cache-dir --prefix "$install_dir" --requirement "$SNAP/setup/requirements.$SNAP_ARCH.txt" >>"$log_file" 2>"$error_file"
+"$SNAP/bin/python3" -m pip install --no-cache-dir --prefix "$install_dir" --requirement "$SNAP/setup/requirements.$SNAP_ARCH.txt" >>"$log_file" 2>"$error_file"
 
 if [ $? -eq 0 ]; then
     echo "Python packages installed successfully" >>"$log_file"
