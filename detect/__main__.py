@@ -115,8 +115,12 @@ def main():
         items.sort(key=operator.itemgetter("priority_tuple"))
         for item in items:
             info = detector.run(item)
+
+            url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
             if info is not None:
-                url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
+                requests.patch(url, json=info)
+            else:
+                info = {"status": "error"}
                 requests.patch(url, json=info)
 
 
