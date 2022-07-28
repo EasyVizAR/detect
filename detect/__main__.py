@@ -3,7 +3,6 @@ import os
 import sys
 
 import requests
-import torch
 
 from .detector import Detector
 
@@ -11,6 +10,12 @@ from .detector import Detector
 DATA_PATH = os.environ.get("DATA_PATH", "./")
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
+
+# Pretrained models from smallest (fast) to largest (accurate):
+# yolov5n, yolov5s, yolov5m, yolov5l, yolov5x
+# Consider detecting the CPU/GPU available and choose based on that.
+MODEL_REPO = "ultralytics/yolov5"
+MODEL_NAME = "yolov5n"
 
 
 def repair_images():
@@ -36,11 +41,8 @@ def repair_images():
 
 
 def main():
-    # Pretrained models from smallest (fast) to largest (accurate):
-    # yolov5n, yolov5s, yolov5m, yolov5l, yolov5x
-    # Consider detecting the CPU/GPU available and choose based on that.
-    model = torch.hub.load('ultralytics/yolov5', 'yolov5n')
-    detector = Detector(model)
+    detector = Detector(MODEL_REPO, MODEL_NAME)
+    detector.initialize_model()
 
     repair_images()
 

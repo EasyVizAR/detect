@@ -1,13 +1,18 @@
 import os
 
+import torch
+import torchvision
+
 
 DATA_PATH = os.environ.get("DATA_PATH", "./")
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 
 
 class Detector:
-    def __init__(self, model):
-        self.model = model
+    def __init__(self, model_repo, model_name):
+        self.model_repo = model_repo
+        self.model_name = model_name
+        self.model = None
 
     def choose_source(self, item):
         path = item.get("imagePath")
@@ -26,7 +31,18 @@ class Detector:
 
         raise Exception("Cannot load image path ({}) or URL ({})".format(path, url))
 
+    def initialize_model(self):
+        self.model = torch.hub.load(self.model_repo, self.model_name)
+
     def run(self, item):
+        detector_info = {
+            "model_repo": self.model_repo,
+            "model_name": self.model_name,
+            "torch_version": torch.__version__,
+            "torchvision_version": torchvision.__version__,
+            "cuda_enabled": torch.cuda.is_available(),
+        }
+
         try:
             source = self.choose_source(item)
 
@@ -52,12 +68,17 @@ class Detector:
                 }
                 annotations.append(obj)
 
+            detector_info['preprocess_duration'] = results.times[1] - results.times[0]
+            detector_info['inference_duration'] = results.times[2] - results.times[1]
+            detector_info['nms_duration'] = results.times[3] - results.times[2]
+
             shape = results.imgs[0].shape
             image_info = {
                 "status": "done",
                 "width": shape[0],
                 "height": shape[1],
-                "annotations": annotations
+                "annotations": annotations,
+                "detector": detector_info
             }
             return image_info
 

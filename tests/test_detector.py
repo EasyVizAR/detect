@@ -4,8 +4,8 @@ from detect.detector import Detector
 
 
 def test_detector_choose_source():
-    model = MagicMock()
-    detector = Detector(model)
+    detector = Detector("test", "test")
+    detector.model = MagicMock()
 
     item = {
         "imagePath": __file__
@@ -27,13 +27,13 @@ def test_detector_choose_source():
 
 
 def test_detector_run():
-    model = MagicMock()
-    detector = Detector(model)
+    detector = Detector("test", "test")
+    detector.model = MagicMock()
 
     results = MagicMock()
     results.xywhn = (MagicMock(), )
     results.xywhn[0].shape = (0, 0)
-    model.return_value = results
+    detector.model.return_value = results
 
     item = {
         "imageUrl": "http://example.org/example.jpg"
