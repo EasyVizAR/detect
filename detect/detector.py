@@ -68,15 +68,20 @@ class Detector:
                 }
                 annotations.append(obj)
 
-            detector_info['preprocess_duration'] = results.times[1] - results.times[0]
-            detector_info['inference_duration'] = results.times[2] - results.times[1]
-            detector_info['nms_duration'] = results.times[3] - results.times[2]
+            # yolov5 library changed from representing timing information as a
+            # list of four times to currently a list of three Profile objects
+            # with an attribute storing the elapsed time
+            if len(results.times) == 3:
+                detector_info['preprocess_duration'] = results.times[0].t
+                detector_info['inference_duration'] = results.times[1].t
+                detector_info['nms_duration'] = results.times[2].t
+            elif len(results.times) == 4:
+                detector_info['preprocess_duration'] = results.times[1] - results.times[0]
+                detector_info['inference_duration'] = results.times[2] - results.times[1]
+                detector_info['nms_duration'] = results.times[3] - results.times[2]
 
-            shape = results.imgs[0].shape
             image_info = {
                 "status": "done",
-                "width": shape[0],
-                "height": shape[1],
                 "annotations": annotations,
                 "detector": detector_info
             }
