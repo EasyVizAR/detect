@@ -11,11 +11,8 @@ DATA_PATH = os.environ.get("DATA_PATH", "./")
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 
-# Pretrained models from smallest (fast) to largest (accurate):
-# yolov5n, yolov5s, yolov5m, yolov5l, yolov5x
-# Consider detecting the CPU/GPU available and choose based on that.
-MODEL_REPO = "ultralytics/yolov5"
-MODEL_NAME = "yolov5n"
+MODEL_REPO = "custom"
+MODEL_NAME = "yolov8n-seg-c04-nms"
 
 
 def repair_images():
@@ -61,11 +58,23 @@ def main():
 
         items.sort(key=operator.itemgetter("priority_tuple"))
         for item in items:
-            info = detector.run(item)
+            result = detector.run(item)
 
             url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
-            if info is not None:
-                requests.patch(url, json=info)
+            if result is not None:
+                requests.patch(url, json=result.info)
+
+                data = result.apply_masks()
+                headers = {
+                    "Content-Type": "image/png"
+                }
+                annotated_url = "{}/annotated.png".format(url)
+                req = requests.put(annotated_url, data=data, headers=headers)
+
+                geom_url = "{}/geometry.png".format(url)
+                if result.try_localize_objects(geom_url):
+                    requests.patch(url, json=result.info)
+
             else:
                 info = {"status": "error"}
                 requests.patch(url, json=info)
