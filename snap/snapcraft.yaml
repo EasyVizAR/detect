@@ -43,6 +43,7 @@ parts:
       - libxext6
       - libxcb1
       - try:
+        - libcublas10
         - libcuda1-384
         - libcudart10.1
 
