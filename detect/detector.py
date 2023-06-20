@@ -4,6 +4,8 @@ import io
 import os
 import time
 
+from distutils.version import LooseVersion
+
 import imageio
 import numpy
 import onnxruntime
@@ -16,6 +18,9 @@ MODEL_DIR = os.environ.get("MODEL_DIR", "./models")
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 
 PROVIDER_PRIORITY_LIST = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+
+# Newer versions support writting PNG directly to a memory buffer.
+SUPPORT_IO_BUFFER = LooseVersion(imageio.__version__) >= "2.31"
 
 
 def generate_palette():
@@ -88,9 +93,13 @@ class DetectionResult:
         combined = alpha[:,:,None] * mask_image + inv_alpha[:,:,None] * self.image[:,:,0:3]
         combined = combined.astype(numpy.uint8)
 
-        buffer = io.BytesIO()
-        imageio.v3.imwrite(buffer, combined, extension=".png")
-        return buffer.getvalue()
+        if SUPPORT_IO_BUFFER:
+            buffer = io.BytesIO()
+            imageio.v3.imwrite(buffer, combined, extension=".png")
+            return buffer.getvalue()
+        else:
+            imageio.v3.imwrite("/tmp/annotated.png", combined, extension=".png")
+            return open("/tmp/annotated.png", "rb").read()
 
 
     def try_localize_objects(self, source):
