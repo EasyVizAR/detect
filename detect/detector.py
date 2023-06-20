@@ -96,8 +96,12 @@ class DetectionResult:
         # Geometry image is originally 16-bit RGBA, with values in millimeters.
         # The loader truncates to 8-bit, which is equivalent to dividing by 256.
         # Multiply by 256 and divide by 1000 to convert to meters.
+        # Zero values in the geometry image represent invalid readings and
+        # are replaced with NaN to avoid including in averages.
         try:
-            geometry = (imageio.v3.imread(source).astype(float) - 128) * 256/1000
+            geometry_image = imageio.v3.imread(source)
+            geometry = (geometry_image.astype(float) - 128.0) * 256.0 / 1000.0
+            geometry[geometry_image == 0] = numpy.nan
         except:
             return False
 
@@ -136,12 +140,16 @@ class DetectionResult:
             for y in range(miny, maxy):
                 for x in range(minx, maxx):
                     score = sigmoid(numpy.dot(weights, masks[0, :, y, x]))
-                    pos_weights.append(score)
 
-                    xyz = geometry[4*y:4*y+4, 4*x:4*x+4, 0:3].mean(axis=(0,1))
+                    xyz = numpy.nanmean(geometry[4*y:4*y+4, 4*x:4*x+4, 0:3], axis=(0,1))
+                    if any(numpy.isnan(xyz)):
+                        continue
+
+                    pos_weights.append(score)
                     points.append(xyz)
 
             position = numpy.average(points, axis=0, weights=pos_weights)
+            print("Detected {} at position {}".format(self.info['annotations'][i]['label'], position))
 
             self.info['annotations'][i]['position'] = {
                 "x": position[0].item(),
