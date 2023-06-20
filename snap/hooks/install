@@ -19,6 +19,15 @@ export TMPDIR="$tmp_dir"
 # Make sure the model directory exists.
 mkdir -p "$model_dir"
 
+if [ -f "$SNAP/bin/python3" ]; then
+    python="$SNAP/bin/python3"
+elif [ -f "$SNAP/usr/bin/python3" ]; then
+    python="$SNAP/usr/bin/python3"
+else
+    echo "Could not find python executable"
+    exit 1
+fi
+
 echo "Running install script for $SNAP_NAME $SNAP_REVISION" >>"$log_file"
 echo "Running install script for $SNAP_NAME $SNAP_REVISION" 2>>"$log_file"
 
@@ -26,20 +35,20 @@ install_onnxruntime () {
     if [ $SNAP_ARCH = "arm64" ]; then
         fetch_url="https://nvidia.box.com/shared/static/pmsqsiaw4pg9qrbeckcbymho6c01jj4z.whl"
         wheel_name=onnxruntime_gpu-1.11.0-cp36-cp36m-linux_aarch64.whl
-        "$SNAP/bin/python3" -c "import requests; req = requests.get('$fetch_url', allow_redirects=True); open('$tmp_dir/$wheel_name', 'wb').write(req.content)"
-        "$SNAP/bin/python3" -m pip install --no-cache-dir --prefix "$install_dir" $tmp_dir/$wheel_name
+        "$python" -c "import requests; req = requests.get('$fetch_url', allow_redirects=True); open('$tmp_dir/$wheel_name', 'wb').write(req.content)"
+        "$python" -m pip install --no-cache-dir --prefix "$install_dir" $tmp_dir/$wheel_name
         rm $tmp_dir/$wheel_name
     else
-        "$SNAP/bin/python3" -m pip install --no-cache-dir --prefix "$install_dir" "onnxruntime-gpu"
+        "$python" -m pip install --no-cache-dir --prefix "$install_dir" "onnxruntime-gpu"
     fi
 }
 
 install_package () {
-    "$SNAP/bin/python3" -m pip install --no-cache-dir --prefix "$install_dir" "$1"
+    "$python" -m pip install --no-cache-dir --prefix "$install_dir" "$1"
 }
 
 test_package () {
-    "$SNAP/bin/python3" -m pip show "$1"
+    "$python" -m pip show "$1"
 }
 
 # Test if system provides onnxruntime. Otherwise, install it.
