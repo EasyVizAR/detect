@@ -7,6 +7,7 @@
 
 tmp_dir="$SNAP_COMMON"
 install_dir="$SNAP_DATA"
+model_dir="$SNAP_DATA/models"
 
 log_file="$SNAP_COMMON/install.log"
 error_file="$SNAP_COMMON/errors.log"
@@ -14,6 +15,9 @@ error_file="$SNAP_COMMON/errors.log"
 # Some devices may have a tmpfs filesystem that is too small to unpack torch
 # for installation, which results in "No space left on device" errors.
 export TMPDIR="$tmp_dir"
+
+# Make sure the model directory exists.
+mkdir -p "$model_dir"
 
 install_package () {
     "$SNAP/bin/python3" -m pip install --no-cache-dir --prefix "$install_dir" "$1"

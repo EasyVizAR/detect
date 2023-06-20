@@ -7,7 +7,6 @@ import requests
 from .detector import Detector
 
 
-DATA_PATH = os.environ.get("DATA_PATH", "./")
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 

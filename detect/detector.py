@@ -12,6 +12,7 @@ from skimage.color import hsv2rgb
 
 
 DATA_PATH = os.environ.get("DATA_PATH", "./")
+MODEL_DIR = os.environ.get("MODEL_DIR", "./models")
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 
 PROVIDER_PRIORITY_LIST = ['CUDAExecutionProvider', 'CPUExecutionProvider']
@@ -190,7 +191,7 @@ class Detector:
 
     def initialize_model(self):
         model_file = "{}.onnx".format(self.model_name)
-        model_path = os.path.join(DATA_PATH, model_file)
+        model_path = os.path.join(MODEL_DIR, model_file)
 
         self.session = onnxruntime.InferenceSession(model_path, providers=PROVIDER_PRIORITY_LIST)
 
