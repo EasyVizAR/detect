@@ -62,6 +62,7 @@ parts:
       - python3-imageio
       - python3-numpy
       - python3-pip
+      - python3-protobuf
       - python3-requests
       - python3-skimage
 
