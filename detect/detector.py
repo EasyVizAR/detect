@@ -29,7 +29,9 @@ def generate_palette():
 
     palette = numpy.zeros((num_classes, 3), dtype=numpy.uint8)
     for i in range(num_classes):
-        rgb = hsv2rgb((values[i], 1, 1))
+        # Older version of skimage requires argument to hsv2rgb to look like an
+        # image, hence the extra brackets.
+        rgb = hsv2rgb([[(values[i], 1, 1)]]).squeeze()
         palette[i, :] = 255.0 * rgb
 
     return palette
