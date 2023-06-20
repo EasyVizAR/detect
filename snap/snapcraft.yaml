@@ -42,6 +42,7 @@ parts:
       - libx11-6
       - libxext6
       - libxcb1
+      - wget
       - try:
         - libcuda1-384
         - libcudart10.1
