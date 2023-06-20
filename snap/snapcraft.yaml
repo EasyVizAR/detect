@@ -16,7 +16,7 @@ apps:
     environment:
       DATA_PATH: $SNAP/easyvizar
       MODEL_DIR: $SNAP_DATA/models
-      PYTHONPATH: $SNAP_DATA/lib/python3.8/site-packages
+      PYTHONPATH: $SNAP_DATA/lib/python3.6/site-packages
       TORCH_HOME: $SNAP_DATA
       VIZAR_SERVER: localhost:5000
     plugs:
