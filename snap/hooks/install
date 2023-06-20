@@ -19,6 +19,17 @@ export TMPDIR="$tmp_dir"
 # Make sure the model directory exists.
 mkdir -p "$model_dir"
 
+install_onnxruntime () {
+    if [ $SNAP_ARCH = "arm64" ]; then
+        wheel_name=onnxruntime_gpu-1.11.0-cp39-cp39m-linux_aarch64.whl
+        wget https://nvidia.box.com/shared/static/jmomlpcctmjojz14zbwa12lxmeh2h6o5.whl -O $tmp_dir/$wheel_name
+        "$SNAP/bin/python3" -m pip install --no-cache-dir --prefix "$install_dir" $tmp_dir/$wheel_name
+        rm $tmp_dir/$wheel_name
+    else
+        "$SNAP/bin/python3" -m pip install --no-cache-dir --prefix "$install_dir" "onnxruntime-gpu"
+    fi
+}
+
 install_package () {
     "$SNAP/bin/python3" -m pip install --no-cache-dir --prefix "$install_dir" "$1"
 }
@@ -28,7 +39,7 @@ test_package () {
 }
 
 # Test if system provides onnxruntime. Otherwise, install it.
-test_package onnxruntime-gpu || test_package onnxruntime || install_package onnxruntime-gpu >>"$log_file" 2>"$error_file"
+test_package onnxruntime-gpu || test_package onnxruntime || install_onnxruntime >>"$log_file" 2>"$error_file"
 
 #echo "Running snap install hook..." >$log_file
 #
