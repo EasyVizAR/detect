@@ -136,10 +136,10 @@ class DetectionResult:
             camera_position.get("z", 0)
         ]
         cam_quat = [
-            camera_position.get("x", 0),
-            camera_position.get("y", 0),
-            camera_position.get("z", 0),
-            camera_position.get("w", 1)
+            camera_orientation.get("x", 0),
+            camera_orientation.get("y", 0),
+            camera_orientation.get("z", 0),
+            camera_orientation.get("w", 1)
         ]
         cam_inv_rot = Rotation.from_quat(cam_quat).inv()
 
