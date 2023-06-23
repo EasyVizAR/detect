@@ -10,6 +10,7 @@ import imageio
 import numpy
 import onnxruntime
 
+from scipy.spatial.transform import Rotation
 from skimage.color import hsv2rgb
 
 
@@ -44,10 +45,11 @@ def sigmoid(x):
 class DetectionResult:
     palette = generate_palette()
 
-    def __init__(self, info, image, outputs):
+    def __init__(self, info, image, outputs, remote_info):
         self.info = info
         self.image = image
         self.outputs = outputs
+        self.remote_info = remote_info
 
     def apply_masks(self):
         boxes = self.outputs[0]
@@ -125,6 +127,22 @@ class DetectionResult:
 
         num_classes = 80
 
+        camera_position = self.remote_info.get("camera_position")
+        camera_orientation = self.remote_info.get("camera_orientation")
+
+        cam_pos = [
+            camera_position.get("x", 0),
+            camera_position.get("y", 0),
+            camera_position.get("z", 0)
+        ]
+        cam_quat = [
+            camera_position.get("x", 0),
+            camera_position.get("y", 0),
+            camera_position.get("z", 0),
+            camera_position.get("w", 1)
+        ]
+        cam_inv_rot = Rotation.from_quat(cam_quat).inv()
+
         num_masks = masks.shape[1]
         #height = masks.shape[2]
         #width = masks.shape[3]
@@ -163,10 +181,14 @@ class DetectionResult:
             position = numpy.average(points, axis=0, weights=pos_weights)
             print("Detected {} at position {}".format(self.info['annotations'][i]['label'], position))
 
+            # Apply inverse camera rotation and add to camera position
+            # to find object position in world coordinates.
+            pos = cam_pos + cam_inv_rot.apply(position)
+
             self.info['annotations'][i]['position'] = {
-                "x": position[0].item(),
-                "y": position[1].item(),
-                "z": position[2].item(),
+                "x": pos[0].item(),
+                "y": pos[1].item(),
+                "z": pos[2].item(),
             }
             self.info['annotations'][i]['position_error'] = 1.0
 
@@ -321,7 +343,7 @@ class Detector:
                 "detector": detector_info
             }
 
-            return DetectionResult(image_info, image, output)
+            return DetectionResult(image_info, image, output, item)
 
         except Exception as error:
             print(error)
