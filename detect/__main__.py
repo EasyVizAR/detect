@@ -16,7 +16,6 @@ MODEL_REPO = "custom"
 MODEL_NAME = "yolov8n-seg-c04-nms"
 
 MARK_LABELS = set(["door", "dining table"])
-MIN_DISTANCE = 1
 
 
 def repair_images():
@@ -65,24 +64,44 @@ def try_create_features(location_id, item, info):
         if pos is None:
             continue
 
-        # Check if there is any already existing feature within configured minimum radius.
-        # If so, we will not create another feature.
+        pos_error = obj.get("position_error", 10.0)
+
+        # Check if there is any already existing feature within a certain
+        # radius.  We use the combined position_error values for the two
+        # objects, which give a rough estimate of how wide they are. If they
+        # are too close, avoid creating another feature.
         duplicate = False
         for other in features_by_label[obj['label']]:
             sq_dist = sum( (pos[d] - other['position'][d])**2 for d in ["x", "y", "z"] )
-            if math.sqrt(sq_dist) < MIN_DISTANCE:
+            dist = math.sqrt(sq_dist)
+
+            # Other point's radius may not be set, which means we do not
+            # know the position_error value for that other feature.
+            # Just use the new object's position_error twice, then.
+            other_radius = other.get("radius")
+            if other_radius is None:
+                other_radius = pos_error
+
+            threshold = pos_error + other_radius
+
+            if dist < threshold:
                 duplicate = True
                 break
 
         if duplicate:
             continue
 
-        # Create a new feature on the map
+        # Create a new feature on the map.  We are abusing the radius field
+        # here to store the position error / spread.  The radius attribute was
+        # meant to control when the feature should be displayed in AR, only
+        # when the user is within a certain radius of the feature position.
+        # However, it is not really used.
         new_feature = {
             "name": obj['label'],
             "position": pos,
             "style": {
-                "placement": "point"
+                "placement": "point",
+                "radius": pos_error
             },
             "type": "object"
         }

@@ -1,6 +1,7 @@
 import ast
 import collections
 import io
+import math
 import os
 import time
 
@@ -179,18 +180,22 @@ class DetectionResult:
                     points.append(xyz)
 
             position = numpy.average(points, axis=0, weights=pos_weights)
-            print("Detected {} at position {}".format(self.info['annotations'][i]['label'], position))
+
+            squared_distances = numpy.sum((points - position) ** 2, axis=1)
+            spread = math.sqrt(numpy.average(squared_distances, weights=pos_weights))
 
             # Apply inverse camera rotation and add to camera position
             # to find object position in world coordinates.
             pos = cam_pos + cam_inv_rot.apply(position)
+
+            print("Detected {} at position {} spread {}".format(self.info['annotations'][i]['label'], pos, spread))
 
             self.info['annotations'][i]['position'] = {
                 "x": pos[0].item(),
                 "y": pos[1].item(),
                 "z": pos[2].item(),
             }
-            self.info['annotations'][i]['position_error'] = 1.0
+            self.info['annotations'][i]['position_error'] = spread
 
         return True
 
