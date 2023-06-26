@@ -179,6 +179,9 @@ class DetectionResult:
                     pos_weights.append(score)
                     points.append(xyz)
 
+            if len(points) == 0 or sum(pos_weights) < 0.5:
+                continue
+
             position = numpy.average(points, axis=0, weights=pos_weights)
 
             squared_distances = numpy.sum((points - position) ** 2, axis=1)
