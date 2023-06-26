@@ -15,7 +15,13 @@ VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 MODEL_REPO = "custom"
 MODEL_NAME = "yolov8n-seg-c04-nms"
 
-MARK_LABELS = set(["door", "dining table"])
+MARK_LABELS = set(["door", "dining table", "desk", "table"])
+
+# Rename some of the labels from the detector before marking them as map features.
+LABELS_TO_FEATURE_NAMES = {
+    "dining table": "table",
+    "desk": "table"
+}
 
 
 def repair_images():
@@ -57,8 +63,11 @@ def try_create_features(location_id, item, info):
             features_by_label[feature['name']].append(feature)
 
     for obj in info.get("annotations", []):
-        if obj['label'] not in MARK_LABELS:
+        label = obj['label']
+        if label not in MARK_LABELS:
             continue
+        if label in LABELS_TO_FEATURE_NAMES:
+            label = LABELS_TO_FEATURE_NAMES[label]
 
         pos = obj.get("position")
         if pos is None:
@@ -71,7 +80,7 @@ def try_create_features(location_id, item, info):
         # objects, which give a rough estimate of how wide they are. If they
         # are too close, avoid creating another feature.
         duplicate = False
-        for other in features_by_label[obj['label']]:
+        for other in features_by_label[label]:
             sq_dist = sum( (pos[d] - other['position'][d])**2 for d in ["x", "y", "z"] )
             dist = math.sqrt(sq_dist)
 
@@ -97,7 +106,7 @@ def try_create_features(location_id, item, info):
         # when the user is within a certain radius of the feature position.
         # However, it is not really used.
         new_feature = {
-            "name": obj['label'],
+            "name": label,
             "position": pos,
             "style": {
                 "placement": "point",
@@ -108,7 +117,7 @@ def try_create_features(location_id, item, info):
         response = requests.post(features_url, json=new_feature)
         if response.ok:
             new_feature = response.json()
-            features_by_label[obj['label']].append(new_feature)
+            features_by_label[label].append(new_feature)
 
 
 def main():
