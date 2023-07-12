@@ -142,7 +142,7 @@ class DetectionResult:
             camera_orientation.get("z", 0),
             camera_orientation.get("w", 1)
         ]
-        cam_inv_rot = Rotation.from_quat(cam_quat).inv()
+        cam_rot = Rotation.from_quat(cam_quat)
 
         num_masks = masks.shape[1]
         #height = masks.shape[2]
@@ -187,9 +187,9 @@ class DetectionResult:
             squared_distances = numpy.sum((points - position) ** 2, axis=1)
             spread = math.sqrt(numpy.average(squared_distances, weights=pos_weights))
 
-            # Apply inverse camera rotation and add to camera position
+            # Apply camera rotation and add to camera position
             # to find object position in world coordinates.
-            pos = cam_pos + cam_inv_rot.apply(position)
+            pos = cam_pos + cam_rot.apply(position)
 
             print("Detected {} at position {} spread {}".format(self.info['annotations'][i]['label'], pos, spread))
 
