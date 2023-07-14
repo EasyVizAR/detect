@@ -15,12 +15,13 @@ VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 MODEL_REPO = "custom"
 MODEL_NAME = "yolov8n-seg-c04-nms"
 
+MARK_ALL_OBJECTS = True
 MARK_LABELS = set(["door", "dining table", "desk", "table"])
 
 # Rename some of the labels from the detector before marking them as map features.
 LABELS_TO_FEATURE_NAMES = {
-    "dining table": "table",
-    "desk": "table"
+#    "dining table": "table",
+#    "desk": "table"
 }
 
 
@@ -64,7 +65,7 @@ def try_create_features(location_id, item, info):
 
     for obj in info.get("annotations", []):
         label = obj['label']
-        if label not in MARK_LABELS:
+        if not MARK_ALL_OBJECTS and label not in MARK_LABELS:
             continue
         if label in LABELS_TO_FEATURE_NAMES:
             label = LABELS_TO_FEATURE_NAMES[label]
