@@ -3,6 +3,7 @@ import math
 import operator
 import os
 import sys
+import time
 
 import requests
 
@@ -12,8 +13,8 @@ from .detector import Detector
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 
-MODEL_REPO = "custom"
-MODEL_NAME = "yolov8n-seg-c04-nms"
+MODEL_REPO = "yolov8"
+MODEL_NAME = "yolov8m-seg-nms"
 
 MARK_ALL_OBJECTS = True
 MARK_LABELS = set(["door", "dining table", "desk", "table"])
@@ -29,7 +30,7 @@ def repair_images():
     """
     Repair images on the server that have an invalid status.
     """
-    query_url = "http://{}/photos?status=unknown".format(VIZAR_SERVER)
+    query_url = "http://{}/photos?status=error".format(VIZAR_SERVER)
     response = requests.get(query_url)
     data = response.json()
 
@@ -45,6 +46,8 @@ def repair_images():
         change = {"status": status}
         url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
         requests.patch(url, json=change)
+
+        time.sleep(0.1)
 
 
 def try_create_features(location_id, item, info):

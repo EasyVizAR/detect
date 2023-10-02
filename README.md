@@ -56,3 +56,22 @@ If everything is set up correctly, the following command should print "True".
 Finally, run the detector:
 
     python3.6 -m detect
+
+
+## Preparing a Model File
+
+Download a pretrained model file.
+
+    https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8m-seg.pt
+
+Use the yolo export script.
+
+    yolo export model=yolov8m-seg.pt format=onnx imgsz=428,760 opset=16
+
+Use the augment script to add an NMS layer.
+
+    python3 scripts/augment_model.py yolov8m-seg.onnx
+
+Use netron to verify that the model looks correct.
+
+    netron yolov8m-seg-nms.onnx
