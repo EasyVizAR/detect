@@ -12,6 +12,7 @@ from .detector import Detector
 
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
+MIN_RETRY_INTERVAL = 5
 
 MODEL_REPO = "yolov8"
 MODEL_NAME = "yolov8m-seg-nms"
@@ -134,8 +135,15 @@ def main():
         sys.stdout.flush()
 
         query_url = "http://{}/photos?status=ready&wait={}".format(VIZAR_SERVER, WAIT_TIMEOUT)
+        start_time = time.time()
         response = requests.get(query_url)
         if not response.ok or response.status_code == 204:
+            # Check if the empty/error response from the server was sooner than
+            # expected.  If so, add an extra delay to avoid spamming the server.
+            # We need this in case long-polling is not working as expected.
+            elapsed = time.time() - start_time
+            if elapsed < MIN_RETRY_INTERVAL:
+                time.sleep(MIN_RETRY_INTERVAL - elapsed)
             continue
 
         items = response.json()
