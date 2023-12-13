@@ -5,6 +5,8 @@ import os
 import sys
 import time
 
+from http import HTTPStatus
+
 import requests
 
 from .detector import Detector
@@ -137,16 +139,20 @@ def main():
         query_url = "http://{}/photos?status=ready&wait={}".format(VIZAR_SERVER, WAIT_TIMEOUT)
         start_time = time.time()
         response = requests.get(query_url)
-        if not response.ok or response.status_code == 204:
-            # Check if the empty/error response from the server was sooner than
-            # expected.  If so, add an extra delay to avoid spamming the server.
-            # We need this in case long-polling is not working as expected.
+
+        items = []
+        if response.ok and response.status_code == HTTPStatus.OK:
+            items = response.json()
+
+        # Check if the empty/error response from the server was sooner than
+        # expected.  If so, add an extra delay to avoid spamming the server.
+        # We need this in case long-polling is not working as expected.
+        if len(items) == 0:
             elapsed = time.time() - start_time
             if elapsed < MIN_RETRY_INTERVAL:
                 time.sleep(MIN_RETRY_INTERVAL - elapsed)
             continue
 
-        items = response.json()
         for item in items:
             # Sort by priority level (descending), then creation time (ascending)
             item['priority_tuple'] = (-1 * item.get("priority", 0), item.get("created"))
