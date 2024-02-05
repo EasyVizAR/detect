@@ -12,7 +12,7 @@ import requests
 from .detector import Detector
 
 
-QUEUE_NAME = os.environ.get("QUEUE_NAME", "ready")
+QUEUE_NAME = os.environ.get("QUEUE_NAME", "detection")
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 MIN_RETRY_INTERVAL = 5
