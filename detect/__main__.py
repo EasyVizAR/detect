@@ -12,6 +12,7 @@ import requests
 from .detector import Detector
 
 
+QUEUE_NAME = os.environ.get("QUEUE_NAME", "ready")
 WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "localhost:5000")
 MIN_RETRY_INTERVAL = 5
@@ -136,7 +137,7 @@ def main():
     while True:
         sys.stdout.flush()
 
-        query_url = "http://{}/photos?status=ready&wait={}".format(VIZAR_SERVER, WAIT_TIMEOUT)
+        query_url = "http://{}/photos?queue_name={}&wait={}".format(VIZAR_SERVER, QUEUE_NAME, WAIT_TIMEOUT)
         start_time = time.time()
         response = requests.get(query_url)
 
