@@ -30,30 +30,6 @@ LABELS_TO_FEATURE_NAMES = {
 }
 
 
-def repair_images():
-    """
-    Repair images on the server that have an invalid status.
-    """
-    query_url = "http://{}/photos?status=error".format(VIZAR_SERVER)
-    response = requests.get(query_url)
-    data = response.json()
-
-    for item in data:
-        status = "created"
-        if item.get("ready", False):
-            status = "ready"
-
-        annotations = item.get("annotations")
-        if annotations is not None and len(annotations) > 0:
-            status = "done"
-
-        change = {"status": status}
-        url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
-        requests.patch(url, json=change)
-
-        time.sleep(0.1)
-
-
 def try_create_features(location_id, item, info):
     # Get current list of features for the location
     features_url = "http://{}/locations/{}/features".format(VIZAR_SERVER, location_id)
@@ -132,8 +108,6 @@ def main():
     detector = Detector(MODEL_REPO, MODEL_NAME)
     detector.initialize_model()
 
-    repair_images()
-
     while True:
         sys.stdout.flush()
 
@@ -160,7 +134,10 @@ def main():
 
         items.sort(key=operator.itemgetter("priority_tuple"))
         for item in items:
-            result = detector.run(item)
+            try:
+                result = detector.run(item)
+            except:
+                result = None
 
             url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
             if result is not None:

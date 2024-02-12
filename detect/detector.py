@@ -130,6 +130,8 @@ class DetectionResult:
 
         camera_position = self.remote_info.get("camera_position")
         camera_orientation = self.remote_info.get("camera_orientation")
+        if camera_position is None or camera_orientation is None:
+            return False
 
         cam_pos = [
             camera_position.get("x", 0),
