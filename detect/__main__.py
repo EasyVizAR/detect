@@ -113,11 +113,17 @@ def main():
 
         query_url = "http://{}/photos?queue_name={}&wait={}".format(VIZAR_SERVER, QUEUE_NAME, WAIT_TIMEOUT)
         start_time = time.time()
-        response = requests.get(query_url)
 
         items = []
-        if response.ok and response.status_code == HTTPStatus.OK:
-            items = response.json()
+
+        try:
+            response = requests.get(query_url)
+            if response.ok and response.status_code == HTTPStatus.OK:
+                items = response.json()
+        except requests.exceptions.RequestException as error:
+            # Most common case is if the API server is restarting,
+            # then we see a connection error temporarily.
+            print(error)
 
         # Check if the empty/error response from the server was sooner than
         # expected.  If so, add an extra delay to avoid spamming the server.
