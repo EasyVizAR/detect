@@ -347,12 +347,8 @@ class Detector:
                 "postprocess_duration": postprocess_end - postprocess_start,
             }
 
-            # If a person was detected, send the image to the person
-            # identification queue.  Otherwise, we are done.
-            has_person = any(x['label'] == "person" for x in annotations)
-
             image_info = {
-                "status": "identification" if has_person else "done",
+                "status": "done",
                 "annotations": annotations,
                 "detector": detector_info
             }

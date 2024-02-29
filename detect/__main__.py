@@ -104,12 +104,37 @@ def try_create_features(location_id, item, info):
             features_by_label[label].append(new_feature)
 
 
+def get_queue_names():
+    url = "http://{}/photos/queues".format(VIZAR_SERVER)
+    response = requests.get(url)
+    if response.ok and response.status_code == HTTPStatus.OK:
+        items = response.json()
+        return set(x['name'] for x in items)
+    else:
+        return set([QUEUE_NAME, "done"])
+
+
+def get_next_queue(detection_result, supported_queue_names):
+    annotations = detection_result.info.get('annotations', [])
+    has_person = any(x['label'] == "person" for x in annotations)
+
+    if has_person and "identification" in supported_queue_names:
+        return "identification"
+    elif len(annotations) > 0 and "detection-3d" in supported_queue_names:
+        return "detection-3d"
+    else:
+        return "done"
+
+
 def main():
     detector = Detector(MODEL_REPO, MODEL_NAME)
     detector.initialize_model()
 
     while True:
         sys.stdout.flush()
+
+        # Set of photo queues supported by the server
+        supported_queue_names = get_queue_names()
 
         query_url = "http://{}/photos?queue_name={}&wait={}".format(VIZAR_SERVER, QUEUE_NAME, WAIT_TIMEOUT)
         start_time = time.time()
@@ -147,6 +172,8 @@ def main():
 
             url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])
             if result is not None:
+                # Determine the next queue for this photo, then send update
+                result.info['status'] = get_next_queue(result, supported_queue_names)
                 requests.patch(url, json=result.info)
 
                 data = result.apply_masks()
