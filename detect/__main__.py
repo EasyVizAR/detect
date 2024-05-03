@@ -176,12 +176,14 @@ def main():
                 result.info['status'] = get_next_queue(result, supported_queue_names)
                 requests.patch(url, json=result.info)
 
-                data = result.apply_masks()
+                annotated_png, mask_png = result.apply_masks()
                 headers = {
                     "Content-Type": "image/png"
                 }
                 annotated_url = "{}/annotated.png".format(url)
-                req = requests.put(annotated_url, data=data, headers=headers)
+                req = requests.put(annotated_url, data=annotated_png, headers=headers)
+                mask_url = "{}/mask.png".format(url)
+                req = requests.put(mask_url, data=mask_png, headers=headers)
 
                 geom_url = "{}/geometry.png".format(url)
                 if result.try_localize_objects(geom_url):

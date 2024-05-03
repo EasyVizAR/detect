@@ -25,6 +25,16 @@ PROVIDER_PRIORITY_LIST = ['CUDAExecutionProvider', 'CPUExecutionProvider']
 SUPPORT_IO_BUFFER = LooseVersion(imageio.__version__) >= "2.31"
 
 
+def encode_png(data):
+    if SUPPORT_IO_BUFFER:
+        buffer = io.BytesIO()
+        imageio.v3.imwrite(buffer, data, extension=".png")
+        return buffer.getvalue()
+    else:
+        imageio.v3.imwrite("/tmp/image.png", data, extension=".png")
+        return open("/tmp/image.png", "rb").read()
+
+
 def generate_palette():
     num_classes = 80
     values = numpy.linspace(0, 1, num_classes)
@@ -90,6 +100,12 @@ class DetectionResult:
                         mask_image[y, x, 0:3] = self.palette[cid]
                         alpha[y, x] = score
 
+        # This is just the mask image with alpha channel added so that it is
+        # transparent where no objects were detected.
+        alpha_uint8 = (alpha * 255).astype(numpy.uint8)
+        mask = numpy.dstack((mask_image, alpha_uint8))
+        mask_png = encode_png(mask)
+
         # Use repeat to grow mask back to original image size
         mask_image = mask_image.repeat(4, axis=0).repeat(4, axis=1)
         alpha = alpha.repeat(4, axis=0).repeat(4, axis=1)
@@ -98,14 +114,9 @@ class DetectionResult:
         combined = alpha[:,:,None] * mask_image + inv_alpha[:,:,None] * self.image[:,:,0:3]
         combined = combined.astype(numpy.uint8)
 
-        if SUPPORT_IO_BUFFER:
-            buffer = io.BytesIO()
-            imageio.v3.imwrite(buffer, combined, extension=".png")
-            return buffer.getvalue()
-        else:
-            imageio.v3.imwrite("/tmp/annotated.png", combined, extension=".png")
-            return open("/tmp/annotated.png", "rb").read()
+        annotated_png = encode_png(combined)
 
+        return annotated_png, mask_png
 
     def try_localize_objects(self, source):
         # Geometry image is originally 16-bit RGBA, with values in millimeters.
