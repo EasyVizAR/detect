@@ -13,6 +13,7 @@ import onnxruntime
 
 from scipy.spatial.transform import Rotation
 from skimage.color import hsv2rgb
+from skimage.measure import find_contours
 
 
 DATA_PATH = os.environ.get("DATA_PATH", "./")
@@ -23,6 +24,9 @@ PROVIDER_PRIORITY_LIST = ['CUDAExecutionProvider', 'CPUExecutionProvider']
 
 # Newer versions support writting PNG directly to a memory buffer.
 SUPPORT_IO_BUFFER = LooseVersion(imageio.__version__) >= "2.31"
+
+# Enable when supported on server
+ADD_OBJECT_CONTOUR = False
 
 
 def encode_png(data):
@@ -283,6 +287,7 @@ class Detector:
 
     def postprocess(self, output, image_shape):
         boxes = output[0]
+        masks = output[1]
         nms = output[2].astype(int)
 
         num_candidates = boxes.shape[2]
@@ -314,6 +319,33 @@ class Detector:
                 "confidence": score,
                 "label": self.names.get(cid, "unknown-{}".format(cid))
             }
+
+            if ADD_OBJECT_CONTOUR:
+                # The image segmentation mask image is downscaled by a factor of 4.
+                minx = int(max(0, cx-w/2) / 4)
+                maxx = int(min(image_width, cx+w/2) / 4)
+                miny = int(max(0, cy-h/2) / 4)
+                maxy = int(min(image_height, cy+h/2) / 4)
+
+                weights = boxes[0, 4+num_classes:, bi].squeeze()
+                scores = numpy.zeros((image_height // 4, image_width // 4))
+                for y in range(miny, maxy):
+                    for x in range(minx, maxx):
+                        scores[y, x] = sigmoid(numpy.dot(weights, masks[0, :, y, x]))
+
+                contours = find_contours(scores, positive_orientation="high")
+
+                # There is hopefully only one contour, but if not, take the largest one.
+                contours.sort(key=len, reverse=True)
+
+                # Scale up to pixel space and round to integer values.
+                contour = (4 * contours[0]).round().astype(int)
+
+                # Reverse columns to make a list of (x, y) pairs.
+                contour = numpy.fliplr(contour)
+
+                obj['contour'] = contour.tolist()
+
             annotations.append(obj)
 
         return annotations
