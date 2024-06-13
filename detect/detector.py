@@ -26,7 +26,7 @@ PROVIDER_PRIORITY_LIST = ['CUDAExecutionProvider', 'CPUExecutionProvider']
 SUPPORT_IO_BUFFER = LooseVersion(imageio.__version__) >= "2.31"
 
 # Enable when supported on server
-ADD_OBJECT_CONTOUR = False
+ADD_OBJECT_CONTOUR = True
 
 
 def encode_png(data):
@@ -338,8 +338,8 @@ class Detector:
                 # There is hopefully only one contour, but if not, take the largest one.
                 contours.sort(key=len, reverse=True)
 
-                # Scale up to pixel space and round to integer values.
-                contour = (4 * contours[0]).round().astype(int)
+                # Scale up to pixel space and convert to relative values (0-1).
+                contour = (4 * contours[0]) / [image_height, image_width]
 
                 # Reverse columns to make a list of (x, y) pairs.
                 contour = numpy.fliplr(contour)
