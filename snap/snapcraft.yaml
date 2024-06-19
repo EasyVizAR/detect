@@ -1,5 +1,5 @@
 name: easyvizar-detect
-base: core20
+base: core18
 version: "0.1"
 summary: Object detection for EasyVizAR headsets
 description: |
