@@ -132,7 +132,8 @@ class DetectionResult:
             geometry_image = imageio.v3.imread(source)
             geometry = (geometry_image.astype(float) - 128.0) * 256.0 / 1000.0
             geometry[geometry_image == 0] = numpy.nan
-        except:
+        except Exception as error:
+            print(error)
             return False
 
         height, width, channels = geometry.shape
@@ -333,7 +334,8 @@ class Detector:
                     for x in range(minx, maxx):
                         scores[y, x] = sigmoid(numpy.dot(weights, masks[0, :, y, x]))
 
-                contours = find_contours(scores, positive_orientation="high")
+                level = numpy.mean(scores)
+                contours = find_contours(scores, level, positive_orientation="high")
 
                 # There is hopefully only one contour, but if not, take the largest one.
                 contours.sort(key=len, reverse=True)

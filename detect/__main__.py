@@ -167,7 +167,8 @@ def main():
         for item in items:
             try:
                 result = detector.run(item)
-            except:
+            except Exception as error:
+                print(error)
                 result = None
 
             url = "http://{}/photos/{}".format(VIZAR_SERVER, item['id'])

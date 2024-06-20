@@ -57,6 +57,10 @@ Finally, run the detector:
 
     python3.6 -m detect
 
+## Using Docker
+
+    docker build -t detect
+    docker run -d --gpus all --add-host=host.docker.internal:host-gateway -e VIZAR_SERVER="http://host.docker.internal:5000" --restart always --name detect detect
 
 ## Preparing a Model File
 
