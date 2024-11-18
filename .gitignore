@@ -1,0 +1,15 @@
+# General
+*.DS_Store
+/detect/__pycache__
+
+# Old YOLO model directory
+/detect/models
+
+# Inference folder for storing sample images, and testing purposes
+/images
+
+# Sample json file for testing purposes
+/detect/exemplar.json
+
+# DINO Repository (Clone from https://github.com/IDEA-Research/GroundingDINO)
+/detect/GroundingDINO 
