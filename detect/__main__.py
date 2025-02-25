@@ -9,15 +9,11 @@ import torch
 import imageio
 import numpy as np
 from torchvision.ops import box_convert
-from matplotlib import patches
-import matplotlib.pyplot as plt
 from PIL import Image
-from typing import List
 from GroundingDINO.groundingdino.util.inference import Model, predict
 import groundingdino.datasets.transforms as T
 import traceback
 from segment_anything import SamPredictor, sam_model_registry
-import scipy.ndimage
 
 # Global configurations
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "detection") # The queue name to process
@@ -29,11 +25,17 @@ MARK_ALL_OBJECTS = True # Whether to mark all objects in the image
 DINO_CONFIG = os.environ.get("CONFIG_PATH", "detect/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py")
 DINO_WEIGHTS = os.environ.get("WEIGHTS_PATH", "detect/GroundingDINO/groundingdino/weights/groundingdino_swint_ogc.pth")
 SAM_PTH = os.environ.get("SAM_PTH", "detect/sam_vit_b_01ec64.pth")
-TEXT_PROMPT = os.environ.get("TEXT_PROMPT", "doors . chairs . tables . ladders . desks") # The text prompt for DINO
-BOX_THRESHOLD = 0.35
+BOX_THRESHOLD = 0.45
 TEXT_THRESHOLD = 0.25
+COLOR_MAP = {
+    "door": [119/255, 170/255, 221/255],  # #77AADD
+    "chair": [238/255, 136/255, 102/255], # #EE8866
+    "table": [238/255, 221/255, 136/255], # #EEDD88
+    "ladder": [255/255, 170/255, 187/255] # #FFAABB
+} # from https://cran.r-project.org/web/packages/khroma/vignettes/tol.html #2.7
 
-def upload_results_to_server(url, result, annotated_png):
+
+def upload_results_to_server(url, result, annotated_png, mask_png):
     """
     Uploads the result information and annotated image to the server.
 
@@ -52,11 +54,14 @@ def upload_results_to_server(url, result, annotated_png):
     headers = {"Content-Type": "image/png"}
     annotated_url = f"{url}/annotated.png"
     response = requests.put(annotated_url, data=annotated_png, headers=headers)
+    headers = {"Content-Type": "image/png"}
+    mask_url = f"{url}/mask.png"
+    response = requests.put(mask_url, data=mask_png, headers=headers)
     if response.ok:
         print(f"Annotated image uploaded to {annotated_url}")
-        # print(response.text)
     else:
         print(f"Failed to upload annotated image: {response.status_code}")
+        print(response.text)
 
 def choose_source(item):
     """
@@ -80,7 +85,7 @@ def choose_source(item):
         return url
 
     if url.startswith("/"):
-        return f"http://{VIZAR_SERVER}{url}"
+        return f"https://{VIZAR_SERVER}{url}"
 
     raise Exception(f"Cannot load image path ({path}) or URL ({url})")
 
@@ -104,68 +109,67 @@ def transform_image(image):
     image_transformed, _ = transform(image_pil, None)
     return image, image_transformed
 
-def annotate_with_matplotlib(image_source: np.ndarray
-                             ,boxes: torch.Tensor
-                             ,masks
-                             ,logits: torch.Tensor
-                             ,phrases: List[str]
-                             ,image_filename: str):
+
+def annotate_with_numpy(image_source: np.ndarray, 
+                        boxes: torch.Tensor, 
+                        masks: list, 
+                        phrases: list):
     """
-    Annotate the image using Matplotlib and save it.
+    Annotate the image using NumPy arrays and save both the annotated image and mask.
 
     Parameters:
     - image_source (np.ndarray): The source image in RGB format.
     - boxes (torch.Tensor): Bounding box coordinates.
     - masks (List[np.ndarray]): The segmentation masks in a list of (C, H, W) format.
-    - logits (torch.Tensor): Confidence scores for each bounding box.
     - phrases (List[str]): Labels for each bounding box.
-    - image_filename (str): The path to save the annotated image.
 
     Returns:
     - annotated_png (bytes): The annotated image in PNG format.
+    - mask_png (bytes): The colored mask image in PNG format.
     """
     h, w, _ = image_source.shape
     boxes = boxes * torch.tensor([w, h, w, h])
     boxes = box_convert(boxes=boxes, in_fmt="cxcywh", out_fmt="xyxy").numpy()
+    
+    overlay = np.zeros((h, w, 4), dtype=np.float32)  # RGBA
+    mask_overlay = np.zeros((h, w, 4), dtype=np.float32)  # Mask-specific overlay (colored mask)
 
-    fig, ax = plt.subplots(1)
-    fig.set_size_inches(w / 100, h / 100)
-    ax.imshow(image_source)
+    for mask, phrase in zip(masks, phrases):
+        color = COLOR_MAP.get(phrase, None)
+        if color is None: 
+            continue
 
-    for box, mask, phrase, score in zip(boxes, masks, phrases, logits):
-        xmin, ymin, xmax, ymax = box
-        width, height = xmax - xmin, ymax - ymin
-        rect = patches.Rectangle(
-            (xmin, ymin),
-            width, height,
-            linewidth=2,
-            edgecolor='red',
-            facecolor='none'
-        )
-        ax.add_patch(rect)
-        ax.text(
-            xmin, ymin - 5,
-            f"{phrase} {score:.2f}",
-            fontsize=10,
-            color='red',
-            verticalalignment='bottom',
-            bbox=dict(facecolor='white', alpha=0.5, edgecolor='none', pad=1)
-        )
         mask = np.transpose(mask, (1, 2, 0))  # CHW to HWC
-        colored_mask = np.zeros((*mask.shape[:2], 4), dtype=np.float32)  # Initialize RGBA array
-        colored_mask[..., :3] = [0, 0, 1] # Blue mask color
-        colored_mask[..., 3] = mask[..., 0] * 0.35
-        ax.imshow(colored_mask)
+        mask = mask[..., 0] if mask.shape[-1] > 0 else np.zeros((h, w), dtype=np.float32) # First channel contains the most confident mask
+        
+        for i in range(3):  # Apply color to both overlays
+            overlay[..., i] = np.where(mask > 0, color[i], overlay[..., i])
+            mask_overlay[..., i] = np.where(mask > 0, color[i], mask_overlay[..., i])
 
-    ax.axis('off')
+        overlay[..., 3] = np.where(mask > 0, 1, overlay[..., 3])  # Set alpha where mask is present
+        mask_overlay[..., 3] = np.where(mask > 0, 1, mask_overlay[..., 3])  # Same for mask
 
-    # Save to buffer and return as PNG binary
-    buffer = io.BytesIO()
-    plt.savefig(image_filename, format='png', bbox_inches='tight', pad_inches=0.1)
-    plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0.1)
-    buffer.seek(0)  # Rewind the buffer for reading
-    plt.close(fig)
-    return buffer.getvalue()
+    # Blend the overlay with the original image
+    annotated_image = image_source.astype(np.float32) / 255
+    alpha = overlay[..., 3:4]  # Ensure alpha shape is (h, w, 1) for broadcasting
+    annotated_image = annotated_image * (1 - alpha) + overlay[..., :3] * alpha
+    annotated_image = (annotated_image * 255).astype(np.uint8)
+
+    # Convert mask overlay to an image
+    mask_image = (mask_overlay * 255).astype(np.uint8)  # Convert float to uint8
+
+    # Save the annotated image as PNG
+    annotated_buffer = io.BytesIO()
+    Image.fromarray(annotated_image).save(annotated_buffer, format="PNG")
+    annotated_buffer.seek(0)
+
+    # Save the mask as PNG
+    mask_buffer = io.BytesIO()
+    Image.fromarray(mask_image).save(mask_buffer, format="PNG")  # Keep colors and transparency
+    mask_buffer.seek(0)
+
+    return annotated_buffer.getvalue(), mask_buffer.getvalue()
+
 
 def get_queue_names():
     '''
@@ -174,7 +178,7 @@ def get_queue_names():
     Returns:
     - supported_queue_names (set): The set of supported queue names.
     '''
-    url = f"http://{VIZAR_SERVER}/photos/queues"
+    url = f"https://{VIZAR_SERVER}/photos/queues"
     response = requests.get(url)
     if response.ok and response.status_code == HTTPStatus.OK:
         items = response.json()
@@ -204,32 +208,6 @@ def get_next_queue(item, supported_queue_names):
     else:
         return "done"
 
-def compute_contour(mask, image_height, image_width):
-    """
-    Computes normalized contour points from a binary mask.
-
-    Parameters:
-    - mask (np.ndarray): Binary mask (H, W) with values 0 or 1.
-    - image_height (int): Height of the image.
-    - image_width (int): Width of the image.
-
-    Returns:
-    - normalized_contour (list): List of [x, y] points normalized to [0, 1].
-    """
-    # Binary dilation to find edges
-    dilated = scipy.ndimage.binary_dilation(mask)
-    contour = dilated ^ mask  # XOR operation to get the edge
-
-    # Extract contour points
-    contour_points = np.argwhere(contour)  # (row, col) format
-
-    # Normalize coordinates
-    normalized_contour = [
-        [col / image_width, row / image_height] for row, col in contour_points
-    ]
-    return normalized_contour
-
-
 def main():
     model = Model(
         model_config_path=DINO_CONFIG,
@@ -243,11 +221,17 @@ def main():
     
     while True:
         sys.stdout.flush()
+
+        # Set of photo queues supported by the server
         supported_queue_names = get_queue_names()
+
         location_url = f"https://{VIZAR_SERVER}/locations/acf9cc39-a7a8-4ea4-bc10-8959cae35582"
         query_url = f"https://{VIZAR_SERVER}/photos?camera_location_id=acf9cc39-a7a8-4ea4-bc10-8959cae35582"
+
         start_time = time.time()
+
         items = []
+
         try:
             location_response = requests.get(location_url)
             if location_response.ok and location_response.status_code == HTTPStatus.OK:
@@ -255,6 +239,7 @@ def main():
             text_prompt = location_info['description']
             text_prompt = " . ".join(item.strip() for item in text_prompt.split(","))
             print(f"Using text prompt: {text_prompt}")
+
             response = requests.get(query_url)
             if response.ok and response.status_code == HTTPStatus.OK:
                 items = response.json()
@@ -278,7 +263,6 @@ def main():
                 np_image = imageio.v3.imread(source)
                 # Process the image with DINO
                 image_source, image = transform_image(np_image)
-                print(f"np_image type: {type(np_image)}, shape: {np_image.shape if isinstance(np_image, np.ndarray) else 'N/A'}")
                 boxes, logits, phrases = predict(
                     image=image,
                     caption=text_prompt,
@@ -287,33 +271,24 @@ def main():
                     text_threshold=TEXT_THRESHOLD,
                     device="cuda" if model.device == "cuda" else "cpu" # assume CUDA is available
                 )
-                image_filename = os.path.join(output_dir, f"cs_arc_lab{item['id']}.png")
                 h, w, _ = image_source.shape
                 boxes_xyxy = box_convert(boxes=boxes * torch.tensor([w, h, w, h]), in_fmt="cxcywh", out_fmt="xyxy").numpy()
                 if boxes_xyxy.shape[0] == 0:
                     print("No objects detected.")
                 else:
-                    print(boxes_xyxy.shape)
+                    # Process the image with SAM
                     predictor.set_image(np_image)
                     masks = []
                     contours = []
                     for box in boxes_xyxy:
-                        print(f"BOX: {box}")
                         mask, _, _ = predictor.predict(box=box, multimask_output=False)
-                        print(mask.shape)
-                        masks.append(mask) # mask is in (1, H, W) format
-                        # contour = compute_contour(mask[0], np_image.shape[0], np_image.shape[1])
-                        # print(f"CONTOUR: {contour}")
-                        # contours.append(contour)  # Add to the list of contours
-                    print(f"MASKS: generated {len(masks)} masks")
+                        masks.append(mask) # mask here is in (1, H, W) format
                 
-                annotated_png = annotate_with_matplotlib(
+                annotated_png, mask_png = annotate_with_numpy(
                     image_source=image_source,
                     boxes=boxes,
                     masks=masks,
-                    logits=logits,
-                    phrases=phrases,
-                    image_filename=image_filename
+                    phrases=phrases
                 )
 
                 result = {
@@ -333,8 +308,8 @@ def main():
                         for box, phrase, score in zip(boxes_xyxy, phrases, logits)
                     ]
                 }
-                upload_url = f"https://{VIZAR_SERVER}/photos/{item['id']}" # IMPORTANT: upload url is different (with port 5000)
-                # upload_results_to_server(upload_url, result, annotated_png)
+                upload_url = f"https://{VIZAR_SERVER}/photos/{item['id']}"
+                upload_results_to_server(upload_url, result, annotated_png, mask_png)
             except Exception as error:
                 print(f"Error processing item {item['id']}: {error}")
                 traceback.print_exc()
@@ -343,3 +318,4 @@ if __name__ == "__main__":
     main()
 
 # /locations/<location_id>
+# "queue_name": "done" to indicate completion of the image
