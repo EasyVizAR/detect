@@ -1,6 +1,9 @@
 # EasyVizAR Object Detection
 
 # Installation
+## Installation of Grounding DINO and Segment Anything Model
+
+Development in progress...
 
 ## Installation of the Snap Package
 

@@ -15,13 +15,13 @@ import groundingdino.datasets.transforms as T
 import traceback
 from segment_anything import SamPredictor, sam_model_registry
 
-# Global configurations
-QUEUE_NAME = os.environ.get("QUEUE_NAME", "detection") # The queue name to process
-WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30) # The time to wait for new items
+# Environment variables
+QUEUE_NAME = os.environ.get("QUEUE_NAME", "detection")
+WAIT_TIMEOUT = os.environ.get("WAIT_TIMEOUT", 30)
 VIZAR_SERVER = os.environ.get("VIZAR_SERVER", "easyvizar.wings.cs.wisc.edu") # The VIZAR server to connect
 DATA_PATH = os.environ.get("DATA_PATH", "./") # The path to save the annotated images locally
 MIN_RETRY_INTERVAL = 5 # The minimum time to wait before retrying
-MARK_ALL_OBJECTS = True # Whether to mark all objects in the image
+# MARK_ALL_OBJECTS = True
 DINO_CONFIG = os.environ.get("CONFIG_PATH", "detect/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py")
 DINO_WEIGHTS = os.environ.get("WEIGHTS_PATH", "detect/GroundingDINO/groundingdino/weights/groundingdino_swint_ogc.pth")
 SAM_PTH = os.environ.get("SAM_PTH", "detect/sam_vit_b_01ec64.pth")
@@ -32,7 +32,7 @@ COLOR_MAP = {
     "chair": [238/255, 136/255, 102/255], # #EE8866
     "table": [238/255, 221/255, 136/255], # #EEDD88
     "ladder": [255/255, 170/255, 187/255] # #FFAABB
-} # from https://cran.r-project.org/web/packages/khroma/vignettes/tol.html #2.7
+} # https://cran.r-project.org/web/packages/khroma/vignettes/tol.html palette 2.7
 
 
 def upload_results_to_server(url, result, annotated_png, mask_png):
@@ -50,6 +50,10 @@ def upload_results_to_server(url, result, annotated_png, mask_png):
         print(f"Failed to update status for {url}: {response.status_code}")
         print(response.text)
 
+    # Check if this frame has any detections
+    if annotated_png is None or mask_png is None:
+        return
+    
     # Upload the annotated image
     headers = {"Content-Type": "image/png"}
     annotated_url = f"{url}/annotated.png"
@@ -61,7 +65,7 @@ def upload_results_to_server(url, result, annotated_png, mask_png):
         print(f"Annotated image uploaded to {annotated_url}")
     else:
         print(f"Failed to upload annotated image: {response.status_code}")
-        print(response.text)
+
 
 def choose_source(item):
     """
@@ -89,9 +93,10 @@ def choose_source(item):
 
     raise Exception(f"Cannot load image path ({path}) or URL ({url})")
 
+
 def transform_image(image):
     """
-    Transform the image to the desired format.
+    Transform the image before grounding dino processing.
 
     Parameters:
     - image (np.ndarray): The source image in RGB format.
@@ -140,7 +145,8 @@ def annotate_with_numpy(image_source: np.ndarray,
             continue
 
         mask = np.transpose(mask, (1, 2, 0))  # CHW to HWC
-        mask = mask[..., 0] if mask.shape[-1] > 0 else np.zeros((h, w), dtype=np.float32) # First channel contains the most confident mask
+        # First channel contains the most confident mask
+        mask = mask[..., 0] if mask.shape[-1] > 0 else np.zeros((h, w), dtype=np.float32)
         
         for i in range(3):  # Apply color to both overlays
             overlay[..., i] = np.where(mask > 0, color[i], overlay[..., i])
@@ -209,15 +215,14 @@ def get_next_queue(item, supported_queue_names):
         return "done"
 
 def main():
-    model = Model(
+    # Initialize the gdino model and sam predictor
+    gdino_model = Model(
         model_config_path=DINO_CONFIG,
         model_checkpoint_path=DINO_WEIGHTS,
         device="cuda" if torch.cuda.is_available() else "cpu"
     )
     sam = sam_model_registry["vit_b"](checkpoint=SAM_PTH)
-    predictor = SamPredictor(sam)
-    output_dir = "./images" # The directory to save annotated images locally
-    os.makedirs(output_dir, exist_ok=True)
+    sam_predictor = SamPredictor(sam)
     
     while True:
         sys.stdout.flush()
@@ -225,27 +230,21 @@ def main():
         # Set of photo queues supported by the server
         supported_queue_names = get_queue_names()
 
-        location_url = f"https://{VIZAR_SERVER}/locations/acf9cc39-a7a8-4ea4-bc10-8959cae35582"
-        query_url = f"https://{VIZAR_SERVER}/photos?camera_location_id=acf9cc39-a7a8-4ea4-bc10-8959cae35582"
-
+        query_url = "http://{}/photos?queue_name={}&wait={}".format(VIZAR_SERVER, QUEUE_NAME, WAIT_TIMEOUT)
         start_time = time.time()
 
         items = []
 
         try:
-            location_response = requests.get(location_url)
-            if location_response.ok and location_response.status_code == HTTPStatus.OK:
-                location_info = location_response.json()
-            text_prompt = location_info['description']
-            text_prompt = " . ".join(item.strip() for item in text_prompt.split(","))
-            print(f"Using text prompt: {text_prompt}")
-
             response = requests.get(query_url)
             if response.ok and response.status_code == HTTPStatus.OK:
                 items = response.json()
         except requests.exceptions.RequestException as error:
             print(error)
 
+        # Check if the empty/error response from the server was sooner than
+        # expected.  If so, add an extra delay to avoid spamming the server.
+        # We need this in case long-polling is not working as expected.
         if len(items) == 0:
             elapsed = time.time() - start_time
             if elapsed < MIN_RETRY_INTERVAL:
@@ -253,61 +252,81 @@ def main():
             continue
 
         for item in items:
+            # Sort by priority level (descending), then creation time (ascending)
             item['priority_tuple'] = (-1 * item.get("priority", 0), item.get("created"))
 
         items.sort(key=operator.itemgetter("priority_tuple"))
+
+        # After sorting, generate a text prompt list for each item since 
+        # they can be from different locations
+        text_prompt = []
         for item in items:
+            if 'location' in item:
+                formatted_text_prompt = " . ".join(part.strip() 
+                                                   for part in item['location']['description']
+                                                   .split(","))
+                text_prompt.append(formatted_text_prompt) # e.g. "door . chair . table"
+            else:
+                raise Exception("Item does not have a location \
+                                or location description does not have anything.")
+        for i, item in enumerate(items):
             try:
                 source = choose_source(item)
-                print(f"Processing image from {source}...")
                 np_image = imageio.v3.imread(source)
+
                 # Process the image with DINO
                 image_source, image = transform_image(np_image)
                 boxes, logits, phrases = predict(
                     image=image,
-                    caption=text_prompt,
-                    model=model.model,
+                    caption=text_prompt[i],
+                    model=gdino_model.model,
                     box_threshold=BOX_THRESHOLD,
                     text_threshold=TEXT_THRESHOLD,
-                    device="cuda" if model.device == "cuda" else "cpu" # assume CUDA is available
+                    device="cuda" if gdino_model.device == "cuda" else "cpu"
                 )
-                h, w, _ = image_source.shape
-                boxes_xyxy = box_convert(boxes=boxes * torch.tensor([w, h, w, h]), in_fmt="cxcywh", out_fmt="xyxy").numpy()
-                if boxes_xyxy.shape[0] == 0:
+                if boxes.shape[0] == 0:
                     print("No objects detected.")
+                    result = {
+                        "status": get_next_queue(item, supported_queue_names),
+                        "annotations": []
+                    }
+                    annotated_png = None
+                    mask_png = None
                 else:
+                    h, w, _ = image_source.shape
+                    boxes_xyxy = box_convert(boxes=boxes * torch.tensor([w, h, w, h])
+                                            ,in_fmt="cxcywh"
+                                            ,out_fmt="xyxy").numpy()
                     # Process the image with SAM
-                    predictor.set_image(np_image)
+                    sam_predictor.set_image(np_image)
                     masks = []
-                    contours = []
                     for box in boxes_xyxy:
-                        mask, _, _ = predictor.predict(box=box, multimask_output=False)
+                        mask, _, _ = sam_predictor.predict(box=box, multimask_output=False)
                         masks.append(mask) # mask here is in (1, H, W) format
-                
-                annotated_png, mask_png = annotate_with_numpy(
-                    image_source=image_source,
-                    boxes=boxes,
-                    masks=masks,
-                    phrases=phrases
-                )
+                    
+                    annotated_png, mask_png = annotate_with_numpy(
+                        image_source=image_source,
+                        boxes=boxes,
+                        masks=masks,
+                        phrases=phrases
+                    )
 
-                result = {
-                    "status": get_next_queue(item, supported_queue_names),
-                    "annotations": [
-                        {
-                            "boundary": {
-                                "height": float(box[3] - box[1])/h,
-                                "left": float(box[0])/w,
-                                "top": float(box[1])/h,
-                                "width": float(box[2] - box[0])/w
-                            },
-                            "confidence": float(score),
-                            "contour": [],
-                            "label": phrase
-                        }
-                        for box, phrase, score in zip(boxes_xyxy, phrases, logits)
-                    ]
-                }
+                    result = {
+                        "status": get_next_queue(item, supported_queue_names),
+                        "annotations": [
+                            {
+                                "boundary": {
+                                    "height": float(box[3] - box[1])/h,
+                                    "left": float(box[0])/w,
+                                    "top": float(box[1])/h,
+                                    "width": float(box[2] - box[0])/w
+                                },
+                                "confidence": float(score),
+                                "label": phrase
+                            }
+                            for box, phrase, score in zip(boxes_xyxy, phrases, logits)
+                        ]
+                    }
                 upload_url = f"https://{VIZAR_SERVER}/photos/{item['id']}"
                 upload_results_to_server(upload_url, result, annotated_png, mask_png)
             except Exception as error:
@@ -316,6 +335,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# /locations/<location_id>
-# "queue_name": "done" to indicate completion of the image
