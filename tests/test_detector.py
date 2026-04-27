@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from detect.detector import Detector
+from ocr.detector import Detector
 
 
 def test_detector_choose_source():
